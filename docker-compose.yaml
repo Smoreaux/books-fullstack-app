@@ -1,0 +1,71 @@
+version: '3'
+
+# Each service runs in a seperate container
+services:
+    # the name of the service
+    express-service:
+        # shorthand name for the container
+        container_name: books-app-container
+        
+        # build path to the Dockerfile
+        build: .
+        
+        # create a bind mount so local changes show up in the container
+        # for development (lots of changes - restarting the container would be slow)
+        volumes:
+            - ./:/app:Z 
+        
+        # map the ports <outside container>:<inside container>
+        ports:
+            - "8100:8100"
+            
+        # make sure the postgres-db-books service starts first
+        depends_on:
+            - postgres-db-books
+        
+        # makes the value "postgres-db-books" available in process.env.DATABASE_HOST in Node server, 
+        # so Pool connects to the container instead of localhost
+        environment:
+            DATABASE_HOST: postgres-db-books
+
+        # Override the entrypoint in the Dockerfile
+        command: npm run migrate && npm run seed && npm start 
+
+    postgres-db-books:
+        container_name: postgres-db-books
+        image: postgres:latest
+        restart: always
+        environment:
+            DATABASE_HOST: postgres-db-books
+            POSTGRES_USER: postgres
+            POSTGRES_PASSWORD: password
+            POSTGRES_PORT: 5432
+            POSTGRES_DB: books-db
+            PGDATA: /var/lib/postgresql/data
+        ports:
+            - "5432:5432"
+        volumes:
+            - pgdatasource:/var/lib/postgresql/data
+            # - migration.js:/docker-entrypoint-initdb.d/migration.js
+
+
+    pgadmin:
+        image: dpage/pgadmin4:latest
+        container_name: pgAdmin
+        restart: always
+        environment:
+            PGADMIN_DEFAULT_EMAIL: smoreaux123@gmail.com
+            PGADMIN_DEFAULT_PASSWORD: password
+        ports:
+            - "8080:80"
+        volumes:
+            - pgadmin-data:/var/lib/pgadmin
+        depends_on:
+            - postgres-db-books
+        
+volumes:
+  pgdatasource:
+  pgadmin-data:
+
+networks:
+  default:
